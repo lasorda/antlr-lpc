@@ -1,0 +1,30 @@
+inherit "/inc/global.h";
+
+#include "a.h"
+
+#define DECLARE_HOOK(hook_name, file)                                         \
+    static mixed _not_used_##var = (g_invoke["##hook_name"] = file, "##var"); \
+    mixed base_##hook_name(mapping context)                                   \
+    {                                                                         \
+        return this_object()->do_invoke("##hook_name", context);              \
+    }
+
+static mapping g_invoke = ([]);
+
+int x = 0;
+
+int init(){
+    int a = 0;
+    int b = a;
+    int c = "/actor/adder"->act(a, b);
+    mixed a = (:$1+$2:);
+    return c;
+}
+
+void foo()
+{
+    int a = 100;
+    int b = 100;
+    int c = a+b;
+    mixed data = ({g_realm_conf[level][REALM_CONF_OBJ_CNT], OBJ_MGR->get_item_count(uid, USER_PROP_BAG, g_realm_conf[level][REALM_CONF_OBJ_ID] ) });
+}

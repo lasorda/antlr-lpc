@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include "LPCBaseListener.h"
 #include "LPCLexer.h"
 #include "LPCParser.h"
@@ -7,10 +8,14 @@
 
 using namespace antlrcpptest;
 using namespace antlr4;
+using namespace std;
 
 int main(int argc, char const *argv[])
 {
-    ANTLRInputStream input(u8"void foo(){return 100;}");
+    ifstream file("./example.lpc");
+    std::string str((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+    ANTLRInputStream input(str);
     LPCLexer lexer(&input);
     CommonTokenStream tokens(&lexer);
 
@@ -26,6 +31,5 @@ int main(int argc, char const *argv[])
     std::cout << tree->toStringTree(&parser) << std::endl
               << std::endl;
 
-    return 0;
     return 0;
 }
