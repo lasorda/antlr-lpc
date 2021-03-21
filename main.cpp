@@ -9,6 +9,26 @@
 using namespace antlrcpptest;
 using namespace antlr4;
 using namespace std;
+using namespace tree;
+
+class FunctionLister : public LPCBaseListener
+{
+private:
+    LPCParser *parser;
+
+public:
+    FunctionLister(LPCParser &parser)
+    {
+        this->parser = &parser;
+    }
+    void enterFunction_defination(LPCParser::Function_definationContext *ctx)
+    {
+        cout << ctx->getText() << endl;
+    }
+    void exitFunction_defination(LPCParser::Function_definationContext *ctx)
+    {
+    }
+};
 
 int main(int argc, char const *argv[])
 {
@@ -19,16 +39,11 @@ int main(int argc, char const *argv[])
     LPCLexer lexer(&input);
     CommonTokenStream tokens(&lexer);
 
-    tokens.fill();
-    for (auto token : tokens.getTokens())
-    {
-        std::cout << token->toString() << std::endl;
-    }
-
     LPCParser parser(&tokens);
     tree::ParseTree *tree = parser.program();
 
-    std::cout << tree->toStringTree(&parser) << std::endl << std::endl;
+    FunctionLister functionLister(parser);
+    ParseTreeWalker().DEFAULT.walk(&functionLister, tree);
 
     return 0;
 }

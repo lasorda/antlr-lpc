@@ -13,7 +13,7 @@ static mapping g_invoke = ([]);
 
 int x = 0;
 
-int init(){
+int init(mixed args...){
     int a = 0;
     int b = a;
     int c = "/actor/adder"->act(a, b);

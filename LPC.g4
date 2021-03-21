@@ -239,12 +239,12 @@ Parameter
 /* Pre processing */
 ComplexDefine
     :   '#' Whitespace* 'define' (~[\\\r\n] | '\\\\' '\r'? '\n' | '\\'. )*
-        // -> skip
+        -> skip
     ;
 
 ComplexInclude
     :   '#' Whitespace* 'include'  ~[\r\n]*
-        // -> skip
+        -> skip
     ;
 
 ComplexPreprocessor
