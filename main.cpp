@@ -28,8 +28,7 @@ int main(int argc, char const *argv[])
     LPCParser parser(&tokens);
     tree::ParseTree *tree = parser.program();
 
-    std::cout << tree->toStringTree(&parser) << std::endl
-              << std::endl;
+    std::cout << tree->toStringTree(&parser) << std::endl << std::endl;
 
     return 0;
 }
