@@ -11,13 +11,13 @@ using namespace antlr4;
 using namespace std;
 using namespace tree;
 
-class FunctionLister : public LPCBaseListener
+class FunctionListener : public LPCBaseListener
 {
 private:
     LPCParser *parser;
 
 public:
-    FunctionLister(LPCParser &parser)
+    FunctionListener(LPCParser &parser)
     {
         this->parser = &parser;
     }
@@ -42,8 +42,8 @@ int main(int argc, char const *argv[])
     LPCParser parser(&tokens);
     tree::ParseTree *tree = parser.program();
 
-    FunctionLister functionLister(parser);
-    ParseTreeWalker().DEFAULT.walk(&functionLister, tree);
+    FunctionListener functionListener(parser);
+    ParseTreeWalker::DEFAULT.walk(&functionListener, tree);
 
     return 0;
 }
