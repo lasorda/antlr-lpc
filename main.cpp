@@ -13,19 +13,31 @@ using namespace tree;
 
 class FunctionListener : public LPCBaseListener
 {
-private:
+  private:
     LPCParser *parser;
 
-public:
+  public:
     FunctionListener(LPCParser &parser)
     {
         this->parser = &parser;
     }
     void enterFunction_defination(LPCParser::Function_definationContext *ctx)
     {
-        cout << ctx->getText() << endl;
+        fprintf(stdout, "%s %d %d\n", ctx->identifier()->getText().c_str(), ctx->identifier()->getStart()->getLine(), ctx->identifier()->getStart()->getCharPositionInLine());
     }
     void exitFunction_defination(LPCParser::Function_definationContext *ctx)
+    {
+    }
+
+    void enterNew_local_name(LPCParser::New_local_nameContext *ctx)
+    {
+        fprintf(stdout, "%s %d %d\n", ctx->getText().c_str(), ctx->getStart()->getLine(), ctx->getStart()->getCharPositionInLine());
+    }
+
+    void enterBlock(LPCParser::BlockContext *ctx)
+    {
+    }
+    void exitBlock(LPCParser::BlockContext *ctx)
     {
     }
 };

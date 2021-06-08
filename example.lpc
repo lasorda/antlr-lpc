@@ -1,30 +1,1100 @@
-inherit "/inc/global.h";
+#include "wizard.h"
+#include "h5_macros.h"
+#include "/sys/common/property.c"
+#include "notify.h"
+#include "/sys/common/qc.c"
 
-#include "a.h"
+#define LOG(x) log_file("wizard", sprintf("%s %s\n", short_time(), x))
 
-#define DECLARE_HOOK(hook_name, file)                                         \
-    static mixed _not_used_##var = (g_invoke["##hook_name"] = file, "##var"); \
-    mixed base_##hook_name(mapping context)                                   \
-    {                                                                         \
-        return this_object()->do_invoke("##hook_name", context);              \
-    }
+// DECLARE_RUN_VAR(g_gm_wizard, ([]))
+//
+// DECLARE_RUN_VAR(g_reciever_list, ({"gzlongchanglin@corp.netease.com", "liqijun@corp.netease.com", "gzguoyong@corp.netease.com"}));
+// DECLARE_RUN_VAR(g_test, 0)
 
-static mapping g_invoke = ([]);
-
-int x = 0;
-
-int init(mixed args...){
-    int a = 0;
-    int b = a;
-    int c = "/actor/adder"->act(a, b);
-    mixed a = (:$1+$2:);
-    return c;
+void wizard_init()
+{
+    reg_wizard("lpc", "call", "call");
+    reg_wizard("lpc", "run", "run");
+    reg_wizard("lpc", "update", "update");
+    reg_wizard("lpc", "svnup", "svnup");
+    reg_wizard("lpc", "gen", "gen");
+    reg_wizard("lpc", "inner_test", "inner_test");
+    reg_wizard("user", "set", "set_user");
+    reg_wizard("user", "get", "get_user");
+    reg_wizard("lpc", "wizard", "wizard");
+    reg_wizard("su", "wizard", "su_wizard");
+    reg_wizard("beta", "add_white_list", "_beta_add_white_list");
+    reg_wizard("trunk", "add_white_list", "_trunk_add_white_list");
+    reg_wizard("svnup", "update", "_svnup_update");
+    reg_wizard("svnup", "gen_code", "_svnup_gencode");
+    reg_wizard("lpc", "super", "super_test", 0, 10);
+    reg_wizard("user", "copy", "copy_user");
+	reg_wizard("lpc", "svninfo", "svninfo");
+	reg_wizard("lpc", "backcode", "backcode");
 }
 
-void foo()
+// 限时迭代控制回退代码和编表
+void com_backcode(string args, int uid)
 {
-    int a = 100;
-    int b = 100;
-    int c = a+b;
-    mixed data = ({g_realm_conf[level][REALM_CONF_OBJ_CNT], OBJ_MGR->get_item_count(uid, USER_PROP_BAG, g_realm_conf[level][REALM_CONF_OBJ_ID] ) });
+	string sys_call;
+	if(args == "1")
+	{
+		sys_call = "sysexec cd huodong/open_pit_package && svn update -r r167021";
+		svnup(sys_call);
+		sys_call = "sysexec cd h5_ca/open_pit_package/ && svn update -r r167040";
+		svnup(sys_call);
+		this_object()->com_gen("open_pit_package", uid);
+		POP_MSG(uid, "代码已更新到维护之前版本，并重置维护标记");
+		FSetUser(uid, "update_open_pit_package", 0);
+	}
+	else if(args == "0")
+	{
+		sys_call = "sysexec cd huodong/open_pit_package && svn up";
+		svnup(sys_call);
+		sys_call = "sysexec cd h5_ca/open_pit_package/ && svn update";
+		svnup(sys_call);
+		this_object()->com_gen("open_pit_package", uid);
+		POP_MSG(uid, "代码已更新到维护之后版本");
+	}
+}
+
+mixed com_svninfo(string args, int uid)
+{
+	int iFd;
+	string str_ret = "svn信息:";
+
+    if(sizeof(args))
+    {
+        if(args == "python")
+        {
+            RPC_MGR->rpc_to_stateless("logic.cmd.wizard", "rpc_svninfo", ({uid}));
+        }
+        else if(args == "go")
+        {
+			string gate_key = "cmd/login"->get_user_gate_key(uid);
+			if(sizeof(gate_key))
+			{
+				RPC_MGR->rpc_to(gate_key, "", "SvnInfo", ({ uid }));
+			}
+        }
+    }
+    else
+    {
+        string each;
+        string sys_call = "sysexec svn info > _svninfo_temp.dat";
+        svnup(sys_call);
+
+        if( (iFd = log_open("_svninfo_temp.dat")) == -1)
+        {
+            return;
+        }
+
+        while(each = log_read(iFd))
+        {
+            if(strsrch(each, "URL: ") == 0)
+            {
+                each = replace_string(each, "URL:", "lpc分支路径: ");
+                ERR_MSG(each);
+				str_ret += sprintf("\n%s", each);
+            }
+            else if(strsrch(each, "Revision: ") == 0)
+            {
+                each = replace_string(each, "Revision: ", "lpc版本号: ");
+                ERR_MSG(each);
+				str_ret += sprintf("\n%s", each);
+            }
+        }
+    }
+	return str_ret;
+}
+
+void rpc_svninfo(string from_key, int uid, string info)
+{
+	ERR_MSG(info);
+}
+
+string super_test(mixed args...)
+{
+    return save_variable(args);
+}
+
+#include "/cmd/easy_fabao_var.h"
+
+static mapping g_bak_key = ([
+
+]);
+
+string copy_user(int uid, int from_uid)
+{
+    mixed dirs = "cmd/easy_fabao"->get_dirs();
+    mapping bak_data = ([]);
+
+    if(!is_inner())
+    {
+        return "只能在内服使用";
+    }
+
+    dirs -= ({DIR_STATELESS_SHADOW});
+
+    if(!FGetUser(from_uid, I_HOST))
+    {
+        return "没有这个玩家";
+    }
+
+    //先退帮，不然帮派找不到这个人
+    if(ORG_MGR->get_user_org(uid))
+    {
+        ORG_MGR->remove_user_from_org(uid);
+    }
+
+    //离婚
+    "home/marriage.c"->divorce(uid, 1);
+
+    "cmd/easy_fabao"->unload_easy_fabao(from_uid);
+    notify_update_file();
+    "cmd/easy_fabao"->unload_easy_fabao(uid);
+    notify_update_file();
+    foreach(string dir in dirs)
+    {
+        string file = sprintf("/dat/easy_fabao/%s/%d/%d.o", dir, from_uid % 100, from_uid);
+        string newfile = sprintf("/dat/easy_fabao/%s/%d/%d.o", dir, uid % 100, uid);
+        rm(newfile);
+        cp(file, newfile);
+    }
+    FSetUser(uid, ORG_MEMBER_DATA, 0);
+    FSetUser(uid, "ARENA_STATE", 0);
+    FSetUser(uid, ARENA_RANK_STATE, 0);
+    "home/mentor.c"->_X_reset(uid);
+    "jingmai/xinfa.c"->_X_reset(uid);
+    this_object()->set_user(uid, I_XIANYU, FGetUser(uid, I_XIANYU));
+    return "拷贝成功，请重新登录";
+}
+
+string _svnup_update(int uid, mixed args...)
+{
+    if(is_inner())
+    {
+        string files = "";
+        svnup("sysexec cd ../newtxii && svn up");
+        if(!arrayp(args)) return "参数不对";
+        for(int i = 0; i < sizeof(args); i++)
+        {
+            if(!stringp(args[i])) return sprintf("参数:%O不对", args[i]);
+            "/sys/daemon/autoupdate.c"->update_file(args[i]);
+            files += args[i] + "  ";
+        }
+        return sprintf("svn up && lpc_update %s", files);
+    }
+    else
+    {
+        return "该指令仅限内服使用";
+    }
+}
+
+string _svnup_gencode(int uid, mixed args...)
+{
+    if(is_inner())
+    {
+        string sys_call = "sysexec svn up && cd gen_codes && python gen_code.py %s && cd ..";
+        string xlses = "";
+        if(!arrayp(args)) return "参数不对";
+        for(int i = 0; i < sizeof(args); i++)
+        {
+            if(!stringp(args[i])) return sprintf("参数:%O不对", args[i]);
+            for(int j = 0; j < sizeof(args[i]); j++)
+            {
+                int ch = args[i][j];
+                if(!((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_'))
+                {
+                    return sprintf("表格名不对%s", args[i]);
+                }
+            }
+            xlses = xlses + args[i] + "  ";
+        }
+        sys_call = sprintf(sys_call, xlses);
+        svnup(sys_call);
+        return sprintf("svn up && gen_code %s", xlses);
+    }
+    else
+    {
+        return "该指令仅限内服使用";
+    }
+}
+
+void add_white_list(string collection_name, string urs, int uid)
+{
+    string db_name = "main";
+    mapping condition, document;
+    condition = document = (["urs":urs]);
+    MONGO_MGR->update(db_name, collection_name, condition, document, 0, file_name(this_object()), "add_white_list_cb", uid);
+}
+
+void add_white_list_cb(string _, mixed result, int uid)
+{
+    send_system_with_member(uid, sprintf("增加白名单结果：%s", save_variable(result)));
+}
+
+void _beta_add_white_list(int uid, string urs)
+{
+    add_white_list("beta_white_list", urs, uid);
+}
+
+void _trunk_add_white_list(int uid, string urs)
+{
+    add_white_list("white_list", urs, uid);
+}
+
+string su_wizard(int uid)
+{
+    if(is_inner())
+    {
+        SetExpireVar(uid, "su_wizard", 1, 30 * 24 * 3600);
+    }
+    else
+    {
+        SetExpireVar(uid, "su_wizard", 1, 3 * 60);
+        for(int i = 0; i < 10; i++)
+        {
+            POP_MSG(uid, "兄弟，你当前在外服，请务必慎重操作！");
+        }
+    }
+    return "成功获取wizard权限";
+}
+
+varargs mixed call(int uid, string mod, string func, mixed args...)
+{
+    return call_other(mod, func, uid, args...);
+}
+
+varargs mixed run(int uid, string mod, string func, mixed args...)
+{
+    return call_other(mod, func, args...);
+}
+
+mixed update(int uid, string filepath)
+{
+    return "/sys/daemon/autoupdate.c"->update_file(filepath);
+}
+
+varargs void set_user(int uid, string var, mixed dat, int nopop)
+{
+    if(IS_STATELESS_VAR(var))
+    {
+        RPC_MGR->rpc_to_stateless("logic.role.utils", "rpc_set_var", ({STATELESS_VAR_COLLECTION(var), uid, var, dat}));
+    }
+    else
+    {
+        FSetUser(uid, var, dat);
+    }
+    if(!nopop) POP_MSG(uid, sprintf("设置%O 为 %O", var, save_variable(dat)));
+    USER_INFO->send_base_info(uid);
+    if(var == I_LEVEL)
+    {
+        NOTIFY_MGR->check_notify_event(uid, NE_LEVEL, FGetUser(uid, I_LEVEL));
+    }
+}
+
+void rpc_set_user(string from_key, int uid, string var, mixed dat)
+{
+	set_user(uid, var, dat, 1);
+}
+
+
+mixed get_user(int uid, string var)
+{
+    mixed ret = FGetUser(uid, var);
+    POP_MSG(uid, sprintf("user get 的结果为 %O", ret));
+    return ret;
+}
+
+varargs void wizard(int uid, string mod, mixed args...)
+{
+    string format = "";
+    string argstr = "";
+    for(int i = 0; i < sizeof(args); i++)
+    {
+        if(i > 0) format += " ";
+        if(intp(args[i]))
+            format += "%d";
+        else if(floatp(args[i]))
+            format += "%f";
+        else if(stringp(args[i]))
+            format += "%s";
+        else
+        {
+            POP_MSG(uid, "你传了一个什么东西过来");
+            return;
+        }
+    }
+    argstr = sprintf(format, args...);
+    foreach(mixed wizcmd in HOOK_MGR->get_hooks("wizcmd"))
+    {
+        if(wizcmd[0] == mod)
+        {
+            call_other(wizcmd[1], "wizcmd", uid, argstr);
+        }
+    }
+}
+
+mixed rpc_call(string xxx, string mod, mixed func, mixed args)
+{
+    return call_other(mod, func, args...);
+}
+
+// DECLARE_RUN_VAR(goldcmd, ([]))
+
+void regoldcmd(string mod, string func, string exec_mod, string exec_func, int origin, int need_uid, int sulv)
+{
+    if(sulv) return;
+    goldcmd[mod + " " + func] = ({exec_mod, exec_func, origin, need_uid});
+}
+
+// DECLARE_RUN_VAR(gmod, ([]))
+void reg_mod(string mod, string file_name)
+{
+    if(gmod[mod] && gmod[mod] != file_name)
+    {
+        DD(sprintf("名字重复了，换一个名字吧 %s 占用了 %s", gmod[mod], mod));
+        return;
+    }
+    gmod[mod] = file_name;
+}
+
+//send_popo( ({"panzhihao@corp.netease.com", "wmn3026@corp.netease.com"}), "xxxxxxxx")
+void do_send_popo(mixed reciever_list, string msg)
+{
+    mapping headers = (["X-Notify-AccessKey":"7ab70ea81ca046979aec4de8fda843e1", ]);
+    mapping payload = (["message_type":"popo", "content":msg, "sender":"sanotify@mesg.corp.netease.com", "reciever_list":reciever_list, ]);
+    string url = "http://notify.nie.netease.com/api/v1/messages";
+
+    if(!arrayp(reciever_list)) reciever_list = ({reciever_list});
+    payload["reciever_list"] = reciever_list;
+
+    if(!is_inner()) url = "http://int.notify.nie.netease.com/api/v1/messages";
+    REQUESTS->post((["url":url, "json":payload, "headers":headers]), __FILE__, "send_cb", ({reciever_list, msg}));
+}
+
+void send_cb(mixed res, mixed reciever_list, string msg)
+{
+    LOG(sprintf("res %s reciever_list %s msg %s", save_variable(json_2_mixed(res)), save_variable(reciever_list), msg));
+}
+
+void _X_test_send_popo()
+{
+    POPO(({"panzhihao@corp.netease.com", "wmn3026@corp.netease.com"}), "vvvvvvvvvvvv");
+}
+
+void rpc_center_gm_wizard(string from_key, string cmd)
+{
+    g_gm_wizard[cmd] += 1;
+}
+
+void rpc_get_gm_wizard(string from_key, string cmd)
+{
+    int center = MATCH_SERVER->get_g_center();
+
+    if(!center) return;
+
+    if(center == get_host_num())
+    {
+        rpc_center_gm_wizard(from_key, cmd);
+    }
+    else
+    {
+        RPC_MGR->rpc_to_lpc(center, __FILE__, "rpc_center_gm_wizard", ({cmd}));
+    }
+}
+
+void at_event_counter_day()
+{
+    int center = MATCH_SERVER->get_g_center();
+    string region = MATCH_SERVER->get_g_region();
+
+    if(center == get_host_num())
+    {
+        mixed data = ({});
+        string msg = sprintf("运营使用的指令次数 %O %O 使用前三的运营指令：", region, center);
+        foreach(string cmd, int cnt in g_gm_wizard)
+        {
+            data += ({({cnt, cmd})});
+        }
+        data = sort_array(data, -1);
+        g_gm_wizard = ([]);
+        for(int i = 0; i < 3 && i < sizeof(data); i++)
+        {
+            if(i) msg += ",";
+            msg += sprintf("%O %O", data[i][1], data[i][0]);
+        }
+        if(get_host_num() >= 100000 || g_test)
+        {
+            POPO(g_reciever_list, msg);
+        }
+    }
+}
+
+void _X_test(string mail)
+{
+    if(sizeof(mail) == 0)
+    {
+        g_test = 0;
+    }
+    else
+    {
+        if(g_test)
+        {
+            g_reciever_list += ({mail});
+        }
+        else
+        {
+            g_test = 1;
+            g_reciever_list = ({mail});
+        }
+    }
+}
+
+void create()
+{
+    TIMER_MGR->reg_event_handler("event_counter_day", "at_event_counter_day");
+}
+
+#define I_SULV "sulv"
+
+void rpc_set_sulv(string xxx, int uid, int sulv)
+{
+    FSetUser(uid, I_SULV, sulv);
+}
+
+//$func xxxxxx调用com_func(xxxxxx, uid)
+//$@host xxxx调用host的$xxxx
+mixed unkown_wizard(string xxx, string cmd, int uid)
+{
+    string mod, func, left = "";
+    mixed servers = MATCH_SERVER->get_g_servers();
+    int sulv = FGetUser(uid, I_SULV);
+
+    if(!is_inner())
+    {
+        for(int i = 0; i < 10; i++) POP_MSG(uid, "兄弟你在外服操作！！！！！！！！！！！！！");
+    }
+    if(g_test || get_host_num() >= 100000)
+    {
+        if(get_host_num() == FGetUser(uid, I_HOST))
+        {
+            POPO(g_reciever_list, sprintf("开发组使用指令 urs:%O uid:%O hostnum:%O cmd:%O", FGetUser(uid, C_URS), uid, get_host_num(), cmd));
+        }
+    }
+    cmd = "cmd/string"->do_trim(cmd);
+    LOG(sprintf("unkown_wizard xxx=%s,cmd=%s,uid=%d", xxx, cmd, uid));
+
+    if(FGetUser(uid, I_HOST) == get_host_num()) send_system_with_member(uid, cmd);
+
+    // 开发组默认权限是0，比0还低，只能执行很少的一部分
+    if(sulv < 0)
+    {
+        this_object()->wizard_with_uid_and_sulv(uid, sulv, cmd);
+        return 1;
+    }
+
+    if(FGetUser(uid, I_HOST) == get_host_num() && GetExpireVar(uid, "su_wizard") != 1 && cmd != "$su wizard" && !is_inner())
+    {
+        POP_MSG(uid, "wizard权限未激活，请确定是在内服!");
+        return 1;
+    }
+    if(sizeof(cmd) >= 2 && cmd[0] == '$' && cmd[1] == '@')
+    {
+        string hosts;
+        if(sscanf(cmd, "$@%s %s", hosts, left) == 2)
+        {
+            cmd = "$" + left;
+            hosts += ",";
+            foreach(string h in explode(hosts, ","))
+            {
+                int hostid = to_int(h);
+                if(hostid && servers[hostid])
+                {
+                    RPC_MGR->rpc_to_lpc(hostid, __FILE__, "unkown_wizard", ({cmd, uid}));
+                    send_system_with_member(uid, sprintf("单服指令%s到%s", cmd, save_variable(hostid)));
+                }
+                else if(hostid == 0 && h == "0")
+                {
+                    foreach(hostid in keys(servers))
+                    {
+                        RPC_MGR->rpc_to_lpc(hostid, __FILE__, "unkown_wizard", ({"$" + left, uid}));
+                    }
+                    send_system_with_member(uid, sprintf("全服指令%s发到%s", cmd, save_variable(keys(servers))));
+                }
+                else
+                {
+                    send_system_with_member(uid, sprintf("没有这个host:%d h:%s", hostid, h));
+                }
+            }
+        }
+        return 1;
+    }
+
+    if(sscanf(cmd, "$%s %s %s", mod, func, left) == 3 || sscanf(cmd, "$%s %s", mod, func, left) == 2)
+    {
+        string key = mod + " " + func;
+        if(goldcmd[key])
+        {
+            int origin = goldcmd[key][2];
+            int need_uid = goldcmd[key][3];
+            mixed args = ({}), ret;
+
+            if(!origin)
+            {
+
+                // 提取参数列表
+                mixed ArgList = explode(left, " ");
+                mixed smix, tmpmix;
+                for(int i = 0; i < sizeof(ArgList); ++i)
+                {
+                    ArgList[i] = "cmd/string"->do_trim(ArgList[i]);
+
+                    if(sscanf(ArgList[i], "%d", ArgList[i])) continue;
+                    if(sscanf(ArgList[i], "\"%s\"", ArgList[i])) continue;
+                    if(sscanf(ArgList[i], "[%s]", smix))
+                    {
+                        smix = sprintf("([%s,])", smix);
+                        tmpmix = restore_variable(smix);
+                        if(mapp(tmpmix))
+                        {
+                            ArgList[i] = tmpmix;
+                        }
+                        continue;
+                    }
+                    if(sscanf(ArgList[i], "{%s}", smix))
+                    {
+                        smix = sprintf("({%s,})", smix);
+                        tmpmix = restore_variable(smix);
+                        if(arrayp(tmpmix))
+                        {
+                            ArgList[i] = tmpmix;
+                        }
+                        continue;
+                    }
+                }
+                args = ArgList;
+            }
+            else
+            {
+                args = ({left});
+            }
+            if(need_uid)
+            {
+                args = ({uid}) + args;
+            }
+            ret = call_other(goldcmd[key][0], goldcmd[key][1], args...);
+            send_system_with_member(uid, sprintv("指令成功: ", ret));
+            POP_MSG(uid, sprintv("指令成功: ", ret));
+            return 1;
+        }
+    }
+
+    if(sscanf(cmd, "$%s %s", mod, left) == 2 && gmod[mod])
+    {
+        mixed ret = call_other(gmod[mod], "wizcmd", uid, left);
+        send_system_with_member(uid, sprintv("指令成功: ", ret));
+        return 1;
+    }
+    if(sscanf(cmd, "$%s %s", func, left) == 2 || sscanf(cmd, "$%s", func))
+    {
+        call_other(__FILE__, "com_" + func, left, uid);
+    }
+    return 1;
+}
+
+void wizard_with_uid_and_sulv(int uid, int sulv, string cmd)
+{
+    _ASSERT(FGetUser(uid, I_HOST) == get_host_num() && FGetUser(uid, I_SULV) == sulv, sprintf("uid=%d,sulv=%d,cmd=%s", uid, sulv, cmd));
+    if(cmd[0..15] == "$usercheck check"  && sulv == -999)
+    {
+        string tmp1,tmp2;
+        int int1,int2;
+        sscanf(cmd, "%s %s %d %d",  tmp1, tmp2, int1, int2);
+        "/sys/daemon/udb.c"->_X_daddy_feed(uid, int1, int2);
+    }
+}
+
+void com_update(string sArg, int uid)
+{
+    mapping res = "/sys/daemon/autoupdate.c"->update_file(sArg);
+
+    send_system_with_member(uid, sprintf("update %s succ", sArg));
+}
+
+void com_open(string sArg, int uid)
+{
+    int open_id = to_int(sArg);
+    "cmd/open_ui.c"->on_open_ui("", uid, open_id);
+}
+
+void com_call(string sArg, int uid)
+{
+    string cObjPath, cFunc, cParam;
+    int iSize;
+    object oObj;
+    mixed ArgList, smix, tmpmix, mixResult, cLog;
+
+    if(sscanf(sArg, "%s->%s(%s", cObjPath, cFunc, cParam) != 3) return;
+
+    iSize = sizeof(cParam);
+    if(iSize < 1 || cParam[iSize - 1] != ')') return;
+
+    cParam = cParam[0..iSize-2];
+    oObj = find_object(cObjPath, 1);
+    if(!oObj)
+    {
+        send_system_with_member(uid, sprintf("找不到物件: %s", cObjPath));
+        return;
+    }
+
+    cParam = replace_string(cParam, "$id", "" + uid);
+    // 当参数包含({})或([])时，才用restore_varialble生成参数
+    if((strsrch(cParam, "({") != -1 && strsrch(cParam, "})") != -1) || (strsrch(cParam, "([") != -1 && strsrch(cParam, "])") != -1))
+    {
+        cParam = "({" + cParam + ",})";
+        ArgList = restore_variable(cParam);
+        if(!arrayp(ArgList))
+        {
+            return;
+        }
+    }
+    else
+    {
+        // 提取参数列表
+        ArgList = explode(cParam, ",");
+        for(int i = 0; i < sizeof(ArgList); ++i)
+        {
+            ArgList[i] = "cmd/string"->do_trim(ArgList[i]);
+
+            if(sscanf(ArgList[i], "%d", ArgList[i])) continue;
+            if(sscanf(ArgList[i], "\"%s\"", ArgList[i])) continue;
+            if(sscanf(ArgList[i], "[%s]", smix))
+            {
+                smix = sprintf("([%s,])", smix);
+                tmpmix = restore_variable(smix);
+                if(mapp(tmpmix))
+                {
+                    ArgList[i] = tmpmix;
+                }
+                continue;
+            }
+            if(sscanf(ArgList[i], "{%s}", smix))
+            {
+                smix = sprintf("({%s,})", smix);
+                tmpmix = restore_variable(smix);
+                if(arrayp(tmpmix))
+                {
+                    ArgList[i] = tmpmix;
+                }
+                continue;
+            }
+        }
+    }
+
+    cFunc = "cmd/string"->do_trim(cFunc);
+    ArgList = ({cFunc}) + ArgList;
+
+    mixResult = call_other(oObj, ArgList);
+
+    cLog = sprintf("%s = %s", sArg, objectp(mixResult) ? file_name(mixResult) : save_variable(mixResult));
+    send_system_with_member(uid, cLog);
+}
+
+string get_redis_ip()
+{
+    if(is_inner())
+    {
+        return "59.111.129.98";
+    }
+    else
+    {
+        return "10.82.2.44";
+    }
+}
+
+void com_upload_record(string sArg, int uid)
+{
+    int fid = to_int(sArg);
+    string cmd = sprintf("mkdir -p log/bak && tar -jcvf log/bak/record_%d.bz2 dat/record/%d/%d.o >> log/hack.dat && sh etc/upload_redis.sh log/bak/record_%d.bz2 record_%d %s >> log/hack.dat", fid, fid % 100, fid, fid, fid, get_redis_ip());
+
+    svnup(sprintf("sysexec %s", cmd));
+    send_system_with_member(uid, "执行完毕");
+}
+
+void com_download_record(string sArg, int uid)
+{
+    int fid = to_int(sArg);
+    string cmd = sprintf("mkdir -p log/bak && curl \"http://59.111.129.98:8022/getfile?key=record_%d\" -o log/bak/record_%d.bz2 >> log/hack.dat && tar -jxvf log/bak/record_%d.bz2", fid, fid, fid);
+
+    svnup(sprintf("sysexec %s", cmd));
+    send_system_with_member(uid, "执行完毕");
+}
+
+// DECLARE_RUN_VAR(gRunCmd, ({}));
+
+#define IDX_UID 0
+#define IDX_FILE 1
+#define IDX_TIME 2
+#define IDX_SEED 3
+
+int check_can_gen(int uid)
+{
+    if(sizeof(gRunCmd))
+    {
+        if(time() - gRunCmd[IDX_TIME] > 60)
+        {
+            gRunCmd = ({});
+        }
+    }
+
+    if(sizeof(gRunCmd))
+    {
+        ERR_MSG(sprintf("玩家[%d]正在编译[%s]表，请稍后再试", gRunCmd[IDX_UID], gRunCmd[IDX_FILE]));
+        return 0;
+    }
+
+    return 1;
+}
+
+void rpc_gen(int uid, string cmd, string genFile)
+{
+    gRunCmd = ({ uid, genFile, time(), random(100000000) });
+    RPC_MGR->rpc_to_stateless("logic.cmd.wizard", "rpc_gen", ({ cmd }), "rpc_gen_done", ({ uid, genFile, gRunCmd[IDX_SEED] }));
+}
+
+void rpc_gen_done(string from_key, int ret, int uid, string genFile, int seed)
+{
+    if(sizeof(gRunCmd) && gRunCmd[IDX_UID] == uid && gRunCmd[IDX_SEED] == seed)
+    {
+        this_object()->process_ca_out(uid);
+        ERR_MSG("#Y编表结束");
+        gRunCmd = ({});
+    }
+}
+
+mixed parse_cmd(string sArg)
+{
+    string genArgs = "", genDesc = "全服", genFile;
+
+    if(sscanf(sArg, "%s %s", genFile, genArgs) == 2)
+    {
+        if(strsrch(genArgs, "-") == 0)
+        {
+            genArgs = genArgs[1..];
+        }
+
+        if(genArgs != "test" && genArgs != "waice")
+        {
+            ERR_MSG("参数错误 $svnup file [waice|test]");
+            return;
+        }
+    }
+    else if(sscanf(sArg, "%s", genFile) != 1)
+    {
+        ERR_MSG("参数错误，如果要编全表，用指令$svnup all或$gen all");
+        return;
+    }
+
+    // 内服默认强制覆盖
+    if(genArgs == "test")
+    {
+        genArgs = "-test -force";
+        genDesc = "内服测试";
+    }
+    else if(genArgs == "waice")
+    {
+        genArgs = "-" + genArgs;
+        genDesc = "外测";
+    }
+
+    genArgs += " -wizard";
+    return ({ genFile, genArgs, genDesc });
+}
+
+void com_gen(string sArg, int uid)
+{
+    string sysmsg;
+    string work_dir = get_config("work_dir");
+    mixed parse_ret;
+    string genFile, genArgs = "", genDesc = "全服";
+
+    if(!is_inner())
+    {
+        send_system_with_member(uid, "只能在内服使用");
+        return;
+    }
+
+    if(!check_can_gen(uid))
+    {
+        return;
+    }
+
+    parse_ret = parse_cmd(sArg);
+    genFile = parse_ret[0];
+    genArgs = parse_ret[1];
+    genDesc = parse_ret[2];
+
+    ERR_MSG(sprintf("#Y开始本地编表:[%s]%s", genDesc, genFile));
+    sysmsg = sprintf("cd %s/gen_codes;python gen_code.py %s %s > ../compile_ca_out.txt 2>&1;cd -;", work_dir, genFile, genArgs);
+    call_out("rpc_gen", 1, uid, sysmsg, genFile);
+}
+
+void com_svnup(string sArg, int uid)
+{
+    string sysmsg;
+    mixed parse_ret;
+    string genFile, genArgs = "", genDesc = "全服";
+    string work_dir = get_config("work_dir");
+
+    if(!is_inner())
+    {
+        send_system_with_member(uid, "只能在内服使用");
+        return;
+    }
+
+    if(!check_can_gen(uid))
+    {
+        return;
+    }
+
+    parse_ret = parse_cmd(sArg);
+    genFile = parse_ret[0];
+    genArgs = parse_ret[1];
+    genDesc = parse_ret[2];
+
+    ERR_MSG(sprintf("#Y开始更新编表:[%s]%s", genDesc, genFile));
+    sysmsg = sprintf("cd %s/h5_ca;svn up ;cd -;cd %s/gen_codes;python gen_code.py %s %s > ../compile_ca_out.txt 2>&1;cd -;", work_dir, work_dir, genFile, genArgs);
+    call_out("rpc_gen", 1, uid, sysmsg, genFile);
+}
+
+int do_upload_user(int pid)
+{
+    mixed dirs = "cmd/easy_fabao"->get_dirs();
+    string tarname = sprintf("g102_user_%d", pid);
+    string cmd = "mkdir -p log/bak && tar -jcvf log/bak/%s.bz2 %s >> log/hack.dat && sh etc/upload_redis.sh log/bak/%s.bz2 %s %s>> log/hack.dat";
+    string files = "";
+
+    if(FGetUser(pid, I_HOST) != get_host_num()) return 0;
+    "cmd/easy_fabao"->unload_easy_fabao(pid);
+    notify_update_file();
+    foreach(string dir in dirs)
+    {
+        string file = sprintf("dat/easy_fabao/%s/%d/%d.o", dir, pid % 100, pid);
+        if(file_size(file) > 0)
+        {
+            files += " ";
+            files += file;
+        }
+    }
+    svnup("sysexec " + sprintf(cmd, tarname, files, tarname, tarname, get_redis_ip()));
+    return 1;
+}
+
+int rpc_upload_user(string from_key, int uid)
+{
+    return do_upload_user(uid);
+}
+
+void com_upload_user(string sArg, int uid)
+{
+    int pid = to_int(sArg);
+
+    if(!do_upload_user(pid))
+    {
+        send_system_with_member(uid, sprintf("没有这个玩家%d", pid));
+    }
+    else
+    {
+        send_system_with_member(uid, "执行完毕");
+    }
+}
+
+void com_download_user(string sArg, int uid)
+{
+    int pid = to_int(sArg);
+    string tarname = sprintf("g102_user_%d", pid);
+    string cmd = sprintf("mkdir -p log/bak && curl \"http://59.111.129.98:8022/getfile?key=%s\" -o log/bak/%s.bz2 >> log/hack.dat && rm -rf tmp_dat && mkdir tmp_dat && tar -C tmp_dat/ -jxvf log/bak/%s.bz2 && cd tmp_dat/dat && tar zcvf tmp.tar.gz easy_fabao/ && DIR=`pwd` && cd ../../dat && tar xvf $DIR/tmp.tar.gz", tarname, tarname, tarname);
+
+    "cmd/easy_fabao"->unload_easy_fabao(pid);
+    svnup(sprintf("sysexec %s", cmd));
+    svnup(sprintf("sysexec rm -rf tmp_dat"));
+    send_system_with_member(uid, "执行完毕");
+}
+
+void com_hack_user(string sArg, int uid)
+{
+    int pid = to_int(sArg);
+    string tarname = sprintf("g102_user_%d", pid);
+    string cmd = sprintf("mkdir -p log/bak && curl \"http://59.111.129.98:8022/getfile?key=%s\" -o log/bak/%s.bz2 >> log/hack.dat && tar -C ./ -jxvf log/bak/%s.bz2", tarname, tarname, tarname);
+
+    "cmd/easy_fabao"->unload_easy_fabao(pid);
+    svnup(sprintf("sysexec %s", cmd));
+    send_system_with_member(uid, "下载完毕");
+    send_system_with_member(uid, copy_user(uid, pid));
+}
+
+void com_copy_user(string sArg, int uid)
+{
+    int pid = to_int(sArg);
+
+    send_system_with_member(uid, copy_user(uid, pid));
+}
+
+void com_reboot(string sArg, int uid)
+{
+    svnup(sprintf("sysexec sleep 1 && cd ../engine/ && ps -ax | grep txos |grep `ls config.[0-9]*` | grep -v 'grep\|ls' | awk '{print $1}' | xargs kill || sleep 3 && rm -rf ../newtxii/binlog &&./txos -f -C `ls config.[0-9]*` &"));
+}
+
+// DECLARE_RUN_CONF(gTest, 0, "内服调试输出开关");
+
+void inner_debug(string msg)
+{
+    if(gTest)
+    {
+ //       "sys/common/error"->push_error(msg);
+        debug_message(msg);
+    }
+}
+
+void com_inner_test(string sArg, int uid)
+{
+    if(!sizeof(sArg))
+    {
+        send_system_with_member(uid, sprintf("无效的指令:$inner_test 1(0)"));
+        return;
+    }
+    gTest = atoi(sArg);
+    if(gTest)
+    {
+        send_system_with_member(uid, "打开内服调试开关");
+    }
+    else
+    {
+        send_system_with_member(uid, "关闭内服调试开关");
+    }
+}
+
+varargs void process_ca_out(int usernum)
+{
+	string each;
+    string *CaFail = ({});
+	string *CmpFail = ({});
+	string *UpdateFail = ({});
+	string *UpdateSuc = ({});
+	int iFd;
+	int iTraceBack = 0;
+	string msg, msg1 = "", msg2 = "";
+	string filepath = "compile_ca_out.txt";
+
+
+	if( (iFd = log_open(filepath)) == -1)
+	{
+		//debug_message("process_ca_out:can not open file\n");
+		return;
+	}
+
+	while(each = log_read(iFd))
+	{
+		string filename = "";
+
+		if (strsrch(each, "error") != -1)
+		{
+			CmpFail += ({each});
+		}
+		else if (strsrch(each, "出错") != -1)
+		{
+			CmpFail += ({each});
+		}
+		else if (strsrch(each, "错误") != -1)
+		{
+			CmpFail += ({each});
+		}
+		else if (strsrch(each, "Traceback") != -1)
+		{
+			iTraceBack = 1;
+		}
+        else if(iTraceBack == 1)
+        {
+            CaFail += ({ each });
+        }
+
+		if(sscanf(each, "U         %s\n", filename) == 1
+				|| sscanf(each, "U\t%s\n", filename) == 1)
+		{
+			string err;
+			if(strsrch(filename, ".c") == -1)
+			{
+				filename = filename + ".c";
+			}
+
+			if (!file_exist(filename))
+			{
+				msg = sprintf("文件不存在:%s", filename);
+				ERR_MSG(msg);
+				msg1 += msg + "#r";
+				continue;
+			}
+			err = catch(CMN_MODULE->update_file(filename));
+			if (sizeof(err) > 0)
+			{
+				UpdateFail +=  ({filename});
+			}
+			else
+			{
+				UpdateSuc += ({filename});
+			}
+		}
+	}
+	log_close(iFd);
+
+	if (iTraceBack)
+	{
+        msg1 += "#R编表报错(Traceback)";
+        if(sizeof(CaFail) > 0)
+        {
+            foreach(string error in CaFail)
+            {
+			    msg1 += error + "#r";
+            }
+        }
+        ERR_MSG(msg1);
+		return;
+	}
+	else if (sizeof(CmpFail) > 0)
+	{
+		msg1 += "#R编表报错" + "#r";
+		foreach (string error in CmpFail)
+		{
+			msg1 += error + "#r";
+		}
+		ERR_MSG(msg1);
+		return;
+	}
+	msg1 += "#G编表成功"+"#r";
+
+	if (sizeof(UpdateFail) > 0)
+	{
+		msg1 +=  "#R更新报错" +"#r";
+		foreach (string filename in UpdateFail)
+		{
+			msg1 += filename + "#r";
+		}
+		ERR_MSG(msg1);
+		return;
+	}
+	msg1 += sprintf("#G更新成功(文件个数：%d)#r", sizeof(UpdateSuc));
+	foreach (string filename in UpdateSuc)
+	{
+		msg1 += filename + "#r";
+	}
+	ERR_MSG(msg1);
+}
+
+// 删号
+void com_kill(string sArg, int uid...)
+{
+    if(is_inner()) RPC_MGR->rpc_to_stateless("logic.role.utils", "rpc_set_var", ({STATELESS_VAR_COLLECTION(I_HOST), uid, I_HOST, 0}));
+    KICK_USER(uid);
 }
