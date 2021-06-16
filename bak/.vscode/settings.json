@@ -1,8 +1,0 @@
-{
-    "files.associations": {
-        "*.tcc": "cpp",
-        "bitset": "cpp",
-        "random": "cpp",
-        "fstream": "cpp"
-    }
-}
