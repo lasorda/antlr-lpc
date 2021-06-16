@@ -5,6 +5,7 @@
 #include "LPCParser.h"
 #include "LPCListener.h"
 #include "antlr4-runtime.h"
+#include "mcpp_lib.h"
 
 using namespace antlrcpptest;
 using namespace antlr4;

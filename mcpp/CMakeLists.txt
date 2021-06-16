@@ -32,13 +32,13 @@ target_sources(mcpp PUBLIC
 
 if(UNIX)
 	include(GNUInstallDirs)
-    
-	set_property(TARGET mcpp PROPERTY PUBLIC_HEADER 
-		"mcpp_lib.h" 
+
+	set_property(TARGET mcpp PROPERTY PUBLIC_HEADER
+		"mcpp_lib.h"
 		"mcpp_out.h"
 	)
 
-	target_compile_options(mcpp PRIVATE "-O2")
+	# target_compile_options(mcpp PRIVATE "-O2")
 
 	if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
 		set_property(TARGET mcpp PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -56,7 +56,7 @@ if(UNIX)
 elseif(WIN32)
 	# define character set - not set, per shipped project files
 	add_definitions(-D_SBCS)
-    
+
 	target_compile_definitions(mcpp PRIVATE
 		"_WIN32_WINNT=0x600"
 		"WIN32_LEAN_AND_MEAN"
@@ -78,3 +78,5 @@ elseif(WIN32)
 	endif()
 endif()
 install(TARGETS mcpp DESTINATION lib)
+add_executable(mcpp_main mcpp.c)
+target_link_libraries(mcpp_main mcpp)

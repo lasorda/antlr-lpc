@@ -12,6 +12,7 @@ add_definitions(-DANTLR4CPP_STATIC)
 set(ANTLR4_WITH_STATIC_CRT OFF)
 include(ExternalAntlr4Cpp)
 include_directories(${ANTLR4_INCLUDE_DIRS})
+include_directories(mcpp)
 
 set(ANTLR_EXECUTABLE ${PROJECT_SOURCE_DIR}/antlr-4.9.2-complete.jar)
 find_package(ANTLR REQUIRED)

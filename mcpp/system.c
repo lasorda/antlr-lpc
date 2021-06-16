@@ -131,6 +131,8 @@ static void     parse_env( const char * env);
                 /* Parse environment variables      */
 static void     set_a_dir( const char * dirname);
                 /* Append an include directory      */
+static void     set_lib( const char * dirname);
+                /* set lib directory      */
 static char *   norm_dir( const char * dirname, int framework);
                 /* Normalize include directory path */
 static char *   norm_path( const char * dir, const char * fname, int inf
@@ -391,7 +393,9 @@ opt_search: ;
             }
             undef_list[ undef_cnt++] = mcpp_optarg;
             break;
-
+        case 'd':
+            set_lib(mcpp_optarg);
+            break;
         default:                            /* What is this one?    */
             usage( opt);
             break;
@@ -488,6 +492,7 @@ static void usage(
 "            Output source file dependency line for makefile.\n",
 "-U <macro>  Undefine <macro>.\n",
 
+"-d <directory> script directory"
 "\nFor further details see mcpp-manual.html.\n",
         NULL,
     };
@@ -528,7 +533,7 @@ static void set_opt_list(
 
     const char * const *    lp = & list[ 0];
 
-    strcpy( optlist, "e:CD:I:M:U:");
+    strcpy( optlist, "e:CD:I:M:U:d:");
                                                 /* Default options  */
     while (*lp)
         strcat( optlist, *lp++);
@@ -855,6 +860,13 @@ static void set_sys_dirs(
 #endif
 }
 
+char *lib_dir = NULL;
+
+static void set_lib(const char *dirname) {
+    lib_dir = malloc(1024);
+    strncpy(lib_dir, norm_dir( dirname, FALSE), 1024);
+}
+
 static void set_a_dir(
     const char *    dirname                 /* The path-name        */
 )
@@ -968,9 +980,9 @@ static char *   norm_path(
     struct stat     st_buf;
 #endif
 
-    if (! dir || (*dir && is_full_path( fname)))
-        cfatal( "Bug: Wrong argument to norm_path()"        /* _F_  */
-                , NULL, 0L, NULL);
+    // if (! dir || (*dir && is_full_path( fname)))
+    //     cfatal( "Bug: Wrong argument to norm_path()"        /* _F_  */
+    //             , NULL, 0L, NULL);
     inf = inf && (mcpp_debug & PATH);       /* Output information   */
 
     strcpy( slbuf1, dir);                   /* Include directory    */
@@ -1592,6 +1604,8 @@ static int  open_include(
         if (open_file( &null, NULL, filename, searchlocal && !full_path
                 , FALSE, FALSE))
             return  TRUE;
+        if(open_file(&lib_dir, NULL, filename, searchlocal && !full_path, FALSE, FALSE))
+            return TRUE;
         if (full_path)
             return  FALSE;
     }
@@ -1609,6 +1623,8 @@ static int  open_include(
     if (search_dir( filename, searchlocal, next))
         return  TRUE;
 
+    if(open_file(&lib_dir, NULL, filename, searchlocal && !full_path, FALSE, FALSE))
+        return TRUE;
     return  FALSE;
 }
 
