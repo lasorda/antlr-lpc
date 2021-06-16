@@ -82,10 +82,9 @@ int main(int argc, char const *argv[])
     mcpp_argv[2] = string("inc").c_str();
     mcpp_argv[3] = string("-d").c_str();
     mcpp_argv[4] = string(".").c_str();
-    mcpp_argv[5] = string("cmd/wizard_common.c").c_str();
+    mcpp_argv[5] = string("example.lpc").c_str();
 
     mcpp_set_out_func(func_fputc, func_fputs, func_fprintf);
-    //  = {argv[0], "-I", "inc", "-d", ".", "cmd/wizard_common.c"};
     mcpp_lib_main(mcpp_argc, mcpp_argv);
 
     cout << from_mcpp;

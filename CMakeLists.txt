@@ -24,4 +24,3 @@ include_directories(${ANTLR_LPCParser_OUTPUT_DIR})
 
 add_executable(${PROJECT_NAME} main.cpp ${ANTLR_LPCParser_CXX_OUTPUTS})
 target_link_libraries(${PROJECT_NAME} antlr4_static mcpp)
-target_link_libraries(${PROJECT_NAME} mcpp)

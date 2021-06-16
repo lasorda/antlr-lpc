@@ -19,6 +19,11 @@
 #define DLL_DECL
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 extern DLL_DECL int     mcpp_lib_main( int argc, char const ** argv);
 extern DLL_DECL void    mcpp_reset_def_out_func( void);
 extern DLL_DECL void    mcpp_set_out_func(
@@ -28,4 +33,10 @@ extern DLL_DECL void    mcpp_set_out_func(
                     );
 extern DLL_DECL void    mcpp_use_mem_buffers( int tf);
 extern DLL_DECL char *  mcpp_get_mem_buffer( OUTDEST od);
+
+#ifdef __cplusplus
+}
+#endif
+
+
 #endif  /* _MCPP_LIB_H  */
