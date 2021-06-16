@@ -15,10 +15,10 @@ using namespace tree;
 
 class FunctionListener : public LPCBaseListener
 {
-  private:
+private:
     LPCParser *parser;
 
-  public:
+public:
     FunctionListener(LPCParser &parser)
     {
         this->parser = &parser;
@@ -49,26 +49,30 @@ char buff[102400];
 
 int func_fputc(int c, OUTDEST od)
 {
-    if(od != OUT) return 0;
+    if (od != OUT)
+        return 0;
     from_mcpp.push_back(c);
     return 0;
 }
 
 int func_fputs(const char *s, OUTDEST od)
 {
-    if(od != OUT) return 0;
+    if (od != OUT)
+        return 0;
     from_mcpp.append(s);
     return 0;
 }
 
 int func_fprintf(OUTDEST od, const char *format, ...)
 {
-    if(od != OUT) return 0;
     va_list args;
     va_start(args, format);
-    sprintf(buff, format, args);
+    if (od == OUT)
+    {
+        vsprintf(buff, format, args);
+        from_mcpp.append(buff);
+    }
     va_end(args);
-    from_mcpp.append(buff);
     return 0;
 }
 
@@ -87,12 +91,11 @@ int main(int argc, char const *argv[])
     mcpp_set_out_func(func_fputc, func_fputs, func_fprintf);
     mcpp_lib_main(mcpp_argc, mcpp_argv);
 
-    cout << from_mcpp;
-    return 0;
-    ifstream file("./example.lpc");
-    std::string str((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    cout << from_mcpp << endl;
+    // ifstream file("./example.lpc");
+    // std::string str((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 
-    ANTLRInputStream input(str);
+    ANTLRInputStream input(from_mcpp);
     LPCLexer lexer(&input);
     CommonTokenStream tokens(&lexer);
 
