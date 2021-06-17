@@ -1,4 +1,4 @@
 build/
 .clangd/
 .antlr/
-*/newtxii/*
+newtxii/

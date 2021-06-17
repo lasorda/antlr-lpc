@@ -349,7 +349,7 @@ fatal_error_exit:
     clear_filelist();
     clear_symtable();
 
-    if (fp_in != stdin)
+    if (fp_in != stdin && fp_in)
         fclose( fp_in);
     if (fp_out != stdout)
         fclose( fp_out);

@@ -336,8 +336,8 @@ void    do_options(
     bsl2sl( cur_work_dir);
 #endif
     sprintf( cur_work_dir + strlen( cur_work_dir), "%c%c", PATH_DELIM, EOS);
+    set_lib(cur_work_dir);
         /* Append trailing path-delimiter   */
-
     set_opt_list( optlist);
 
 opt_search: ;
@@ -392,9 +392,6 @@ opt_search: ;
                 longjmp( error_exit, -1);
             }
             undef_list[ undef_cnt++] = mcpp_optarg;
-            break;
-        case 'd':
-            set_lib(mcpp_optarg);
             break;
         default:                            /* What is this one?    */
             usage( opt);
@@ -492,7 +489,6 @@ static void usage(
 "            Output source file dependency line for makefile.\n",
 "-U <macro>  Undefine <macro>.\n",
 
-"-d <directory> script directory"
 "\nFor further details see mcpp-manual.html.\n",
         NULL,
     };
@@ -533,7 +529,7 @@ static void set_opt_list(
 
     const char * const *    lp = & list[ 0];
 
-    strcpy( optlist, "e:CD:I:M:U:d:");
+    strcpy( optlist, "e:CD:I:M:U:");
                                                 /* Default options  */
     while (*lp)
         strcat( optlist, *lp++);
@@ -864,7 +860,7 @@ char *lib_dir = NULL;
 
 static void set_lib(const char *dirname) {
     lib_dir = malloc(1024);
-    strncpy(lib_dir, norm_dir( dirname, FALSE), 1024);
+    strncpy(lib_dir, cur_work_dir, 1024);
 }
 
 static void set_a_dir(
