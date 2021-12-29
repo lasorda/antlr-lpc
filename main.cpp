@@ -81,10 +81,10 @@ int main(int argc, char const *argv[])
     int mcpp_argc = 4;
     char const *mcpp_argv[4];
 
-    mcpp_argv[0] = string("mcpp").c_str();
-    mcpp_argv[1] = string("-I").c_str();
-    mcpp_argv[2] = string("inc").c_str();
-    mcpp_argv[3] = string("fight/skill.c").c_str();
+    mcpp_argv[0] = "mcpp";
+    mcpp_argv[1] = "-I";
+    mcpp_argv[2] = "inc";
+    mcpp_argv[3] = "a.c";
 
     mcpp_set_out_func(func_fputc, func_fputs, func_fprintf);
     mcpp_lib_main(mcpp_argc, mcpp_argv);
